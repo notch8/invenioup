@@ -73,6 +73,8 @@ jobs:
           helm upgrade --install inveniordm-demo helm-invenio/invenio \
             -f helm/values.yaml \
             --set image.tag=${{ github.sha }} \
+            --set-string rabbitmq.auth.existingPasswordSecret=inveniordm-rabbitmq-credentials \
+            --set-string rabbitmq.auth.existingSecretPasswordKey=rabbitmq-password \
             --namespace inveniordm \
             --create-namespace \
             --wait \

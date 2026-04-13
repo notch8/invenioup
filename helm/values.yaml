@@ -159,7 +159,11 @@ redis:
 rabbitmq:
   enabled: true
   auth:
-    password: ""  # Set via K8s secret or override at deploy time
+    username: user
+    password: ""
+    # Required when password is empty: Bitnami RabbitMQ + Invenio worker env read this secret.
+    existingPasswordSecret: inveniordm-rabbitmq-credentials
+    existingSecretPasswordKey: rabbitmq-password
   image:
     repository: bitnamilegacy/rabbitmq
   resources:
