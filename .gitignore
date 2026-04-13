@@ -1,0 +1,54 @@
+# Python
+*.py[cod]
+__pycache__/
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.so
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Pipenv
+Pipfile.lock
+
+# InvenioRDM
+logs/
+data/
+static/dist/
+static/node_modules/
+assets/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/nginx/test.key
+docker/nginx/test.crt
+
+# Environment / Secrets
+.env
+.env.local
+.env.production
+
+# Playwright
+tests/e2e/node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+
+# Helm
+charts/
+helm/secrets/*.yaml
+!helm/secrets/*.yaml.example

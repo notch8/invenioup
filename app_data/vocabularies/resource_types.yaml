@@ -1,0 +1,3 @@
+# Default resource types shipped with InvenioRDM.
+# These will be loaded via `invenio rdm-records fixtures`.
+# See: https://inveniordm.docs.cern.ch/operate/customize/vocabularies/resource_types/

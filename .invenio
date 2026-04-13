@@ -1,0 +1,21 @@
+[cli]
+flavour = RDM
+logfile = /logs/invenio-cli.log
+
+[cookiecutter]
+project_name = InvenioRDM Demo
+project_shortname = invenioup
+project_site = inveniordm-demo.notch8.com
+github_repo = notch8/invenioup
+description = Notch8 InvenioRDM Demo Instance
+author_name = Notch8
+author_email = info@notch8.com
+year = 2026
+database = postgresql
+search = opensearch2
+file_storage = S3
+development_tools = yes
+site_code = yes
+
+[files]
+lesschanged = False

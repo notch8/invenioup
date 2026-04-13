@@ -1,0 +1,52 @@
+{#
+  Custom frontpage for Notch8 InvenioRDM Demo.
+  Overrides: invenio_app_rdm/templates/semantic-ui/invenio_app_rdm/frontpage.html
+#}
+{%- extends "invenio_theme/frontpage.html" %}
+
+{%- block page_body %}
+<div class="ui container">
+  <div class="ui centered grid" style="margin-top: 4rem; margin-bottom: 4rem;">
+    <div class="twelve wide column center aligned">
+      <h1 class="ui huge header" style="margin-bottom: 1rem;">
+        Welcome to InvenioRDM
+      </h1>
+      <p class="ui large text" style="color: #555; margin-bottom: 2rem;">
+        A research data management platform demo hosted by
+        <a href="https://notch8.com" target="_blank" rel="noopener">Notch8</a>.
+        Upload, share, and preserve your research data.
+      </p>
+      <div class="ui divider"></div>
+    </div>
+  </div>
+
+  <div class="ui three column stackable grid" style="margin-bottom: 4rem;">
+    <div class="column center aligned">
+      <i class="huge upload icon" style="color: #1a73e8;"></i>
+      <h3>Deposit</h3>
+      <p>Upload datasets, publications, software, and more with rich metadata and DOI assignment.</p>
+    </div>
+    <div class="column center aligned">
+      <i class="huge search icon" style="color: #1a73e8;"></i>
+      <h3>Discover</h3>
+      <p>Full-text search, faceted browsing, and OAI-PMH harvesting for broad discoverability.</p>
+    </div>
+    <div class="column center aligned">
+      <i class="huge shield alternate icon" style="color: #1a73e8;"></i>
+      <h3>Preserve</h3>
+      <p>Built-in versioning, file integrity checks, and standards-based archival.</p>
+    </div>
+  </div>
+
+  <div class="ui centered grid" style="margin-bottom: 4rem;">
+    <div class="twelve wide column center aligned">
+      <a href="/search" class="ui large primary button">
+        Browse Records
+      </a>
+      <a href="/signup" class="ui large basic button" style="margin-left: 1rem;">
+        Create Account
+      </a>
+    </div>
+  </div>
+</div>
+{%- endblock page_body %}

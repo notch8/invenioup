@@ -1,0 +1,191 @@
+x-invenio-env-file: &invenio-env-file
+  env_file:
+    - .env
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────
+  cache:
+    image: redis:7
+    restart: "unless-stopped"
+    read_only: true
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:6379:6379"
+
+  db:
+    image: postgres:14.13
+    restart: "unless-stopped"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-invenioup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invenioup}
+      POSTGRES_DB: ${POSTGRES_DB:-invenioup}
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-invenioup}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mq:
+    image: rabbitmq:3-management
+    restart: "unless-stopped"
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:15672:15672"
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5672:5672"
+
+  search:
+    image: opensearchproject/opensearch:2.17.1
+    restart: "unless-stopped"
+    environment:
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD:-changeme-opensearch-admin}"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "discovery.type=single-node"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 2g
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:9200:9200"
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:9600:9600"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.17.1
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5601:5601"
+    expose:
+      - "5601"
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://search:9200"]'
+      - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
+
+  s3:
+    image: minio/minio:RELEASE.2022-10-24T18-35-07Z
+    restart: "unless-stopped"
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:9000:9000"
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin-secret}
+    volumes:
+      - ./data:/data
+    command: server /data --console-address :9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  pgadmin:
+    image: dpage/pgadmin4:6
+    restart: "unless-stopped"
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-info@notch8.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-invenioup}
+    volumes:
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json
+
+  # ── Application ─────────────────────────────────────────────────
+  web-ui:
+    <<: *invenio-env-file
+    build: .
+    image: invenioup:latest
+    restart: "unless-stopped"
+    command: ["uwsgi /opt/invenio/var/instance/uwsgi_ui.ini"]
+    environment:
+      INVENIO_AUTO_INIT: "true"
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5000:5000"
+    volumes:
+      - static_data:/opt/invenio/var/instance/static
+    depends_on:
+      db:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+      cache:
+        condition: service_started
+      mq:
+        condition: service_started
+
+  web-api:
+    <<: *invenio-env-file
+    image: invenioup:latest
+    restart: "unless-stopped"
+    command: ["uwsgi /opt/invenio/var/instance/uwsgi_rest.ini"]
+    ports:
+      - "${DOCKER_SERVICES_IP_BIND:-127.0.0.1}:5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+      cache:
+        condition: service_started
+      mq:
+        condition: service_started
+
+  worker:
+    <<: *invenio-env-file
+    image: invenioup:latest
+    restart: "unless-stopped"
+    command: ["celery -A invenio_app.celery worker --beat --loglevel=INFO"]
+    depends_on:
+      db:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+      cache:
+        condition: service_started
+      mq:
+        condition: service_started
+
+  scheduler:
+    <<: *invenio-env-file
+    image: invenioup:latest
+    restart: "unless-stopped"
+    command: ["celery -A invenio_app.celery beat --scheduler invenio_jobs.services.scheduler:RunScheduler --loglevel=INFO"]
+    depends_on:
+      db:
+        condition: service_healthy
+      mq:
+        condition: service_started
+
+  frontend:
+    build: ./docker/nginx/
+    image: invenioup-frontend:latest
+    restart: "unless-stopped"
+    volumes:
+      - static_data:/opt/invenio/var/instance/static
+    depends_on:
+      - web-ui
+      - web-api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.invenioup.tls=true"
+      - "traefik.http.routers.invenioup.entrypoints=websecure"
+      - "traefik.http.routers.invenioup.rule=Host(`invenioup.localhost.direct`)"
+      - "traefik.http.services.invenioup.loadbalancer.server.port=80"
+
+volumes:
+  static_data:
+
+networks:
+  default:
+    name: stackcar
+    external: true
