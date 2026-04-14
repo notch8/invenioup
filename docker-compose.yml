@@ -101,9 +101,11 @@ services:
       - ./docker/pgadmin/servers.json:/pgadmin4/servers.json
 
   # ── Application ─────────────────────────────────────────────────
-  web-ui:
+  web:
     <<: *invenio-env-file
-    build: .
+    build:
+      context: .
+      target: web
     image: invenioup:latest
     restart: "unless-stopped"
     command: ["uwsgi /opt/invenio/var/instance/uwsgi_ui.ini"]
@@ -173,7 +175,7 @@ services:
     volumes:
       - static_data:/opt/invenio/var/instance/static
     depends_on:
-      - web-ui
+      - web
       - web-api
     labels:
       - "traefik.enable=true"

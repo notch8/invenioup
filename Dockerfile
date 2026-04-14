@@ -8,7 +8,7 @@
 #
 # The Pipfile.lock is generated inside the build if not present.
 
-FROM registry.cern.ch/inveniosoftware/almalinux:1
+FROM registry.cern.ch/inveniosoftware/almalinux:1 AS web
 
 # Pin less to 4.5.1 to avoid the known 4.6.2 build breakage.
 # See: https://github.com/inveniosoftware/invenio-assets (JS dependency roulette)

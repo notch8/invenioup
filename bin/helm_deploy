@@ -1,0 +1,44 @@
+#!/bin/sh
+# Deploy InvenioRDM via helm-invenio (same role as Hyku's bin/helm_deploy).
+#
+# Usage: ./bin/helm_deploy RELEASE_NAME NAMESPACE
+#
+# Required env:
+#   DEPLOY_REGISTRY   e.g. ghcr.io
+#   DEPLOY_REPOSITORY e.g. notch8/invenioup (no registry prefix)
+#   DEPLOY_TAG        e.g. git SHA built and pushed by CI
+#
+# Optional:
+#   HELM_EXTRA_ARGS   extra helm flags (e.g. '-f ops/demo-deploy.yaml')
+#   HELM_WAIT         default: --wait
+#   HELM_TIMEOUT      default: 10m
+#
+if [ -z "$1" ] || [ -z "$2" ]
+then
+    echo './bin/helm_deploy RELEASE_NAME NAMESPACE'
+    exit 1
+fi
+release_name="${1}"
+namespace="${2}"
+
+CHART_VERSION="${CHART_VERSION:-0.11.1}"
+
+DEPLOY_IMAGE="${DEPLOY_IMAGE:-ghcr.io/notch8/invenioup/web}"
+DEPLOY_TAG="${DEPLOY_TAG:-latest}"
+echo $DEPLOY_TAG
+
+helm pull --untar helm-invenio/invenio --version $CHART_VERSION
+
+helm repo update
+
+helm upgrade \
+    --install \
+    --atomic \
+    --timeout 15m0s \
+    --set image.repository="$DEPLOY_IMAGE" \
+    --set image.tag="$DEPLOY_TAG" \
+    $HELM_EXTRA_ARGS \
+    --namespace="$namespace" \
+    --create-namespace \
+    "$release_name" \
+    invenio
