@@ -27,7 +27,7 @@ jobs:
     uses: notch8/actions/.github/workflows/build.yaml@v1.0.9
     secrets: inherit
     with:
-      components: '["web"]'
+      component: '["web"]'
 
   # test:
   #   needs: build
