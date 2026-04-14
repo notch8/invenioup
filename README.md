@@ -1,6 +1,6 @@
 # InvenioRDM Demo Instance
 
-Notch8-hosted InvenioRDM v13.1 demo instance for business development.
+Notch8-hosted **InvenioRDM v13.x** demo instance for business development (see `Pipfile` for the pinned line).
 
 ## Quick Start (Local Development)
 
@@ -18,19 +18,13 @@ sc proxy up              # start Traefik (if not already running)
 docker compose up --build -d
 ```
 
-That's it. On first run the `web-ui` container automatically:
-- Waits for PostgreSQL, OpenSearch, Redis, and RabbitMQ
-- Creates the database and search indexes
-- Loads vocabularies and fixtures
-- Creates an admin user
-- Loads demo records
+On first run the `web-ui` service (`INVENIO_AUTO_INIT=true` in `docker-compose.yml`) will wait for dependencies, initialize the database and indexes, load fixtures, and create an admin user.
 
-Open **https://invenioup.localhost.direct** and log in with the admin email and
-password from your `.env` (`INVENIO_ADMIN_EMAIL` / `INVENIO_ADMIN_PASSWORD`,
-matching `.env.example` defaults unless you changed them).
+### Login (local)
 
-Stack Car's Traefik proxy handles TLS termination with the `localhost.direct`
-wildcard cert. The Traefik dashboard is at **https://traefik.localhost.direct**.
+Use **`INVENIO_ADMIN_EMAIL`** and **`INVENIO_ADMIN_PASSWORD`** from your `.env`. Defaults match `.env.example` (e.g. `admin@notch8.com` / `changeme123`). After `docker compose down -v`, the next `up` is a fresh init with the same defaults unless you changed `.env`.
+
+Open **https://invenioup.localhost.direct**. Stack Car’s Traefik terminates TLS (`localhost.direct`); dashboard at **https://traefik.localhost.direct**.
 
 ### Daily workflow
 
@@ -42,7 +36,7 @@ docker compose logs -f web-ui web-api worker   # Tail app logs
 docker compose exec web-ui bash                # Shell into the app
 ```
 
-To build images without bringing the stack up (optional):
+Optional local image builds:
 
 ```bash
 docker build -t invenioup:latest .
@@ -52,37 +46,67 @@ docker build -t invenioup-frontend:latest ./docker/nginx/
 ### Testing
 
 ```bash
-# Smoke tests (curl-based health checks)
 ./scripts/smoke-test.sh
-
-# Playwright e2e tests (requires: cd tests/e2e && npm install && npx playwright install chromium)
-cd tests/e2e && npx playwright test
+cd tests/e2e && npm install && npx playwright install chromium && npx playwright test
 ```
 
-## Deployment (r2-friends K8s Cluster)
+## Deployment (Kubernetes)
 
-### First-time setup
+Helm values live under **`ops/`**, not a root `helm/` tree.
 
-1. Create K8s secrets (see `helm/secrets/README.md`)
-2. Run the bootstrap script:
-   ```bash
-   ./scripts/bootstrap-deploy.sh
-   ```
-3. After successful first deploy, set `invenio.init: false` in `helm/values.yaml`
+| Item | Role |
+|------|------|
+| `ops/<env>-deploy.tmpl.yaml` | Committed overrides; only **`$RABBITMQ_PASSWORD`** and **`$POSTGRES_PASSWORD`** are replaced by `envsubst`. |
+| `ops/<env>-deploy.yaml` | Generated at deploy time (**gitignored**). Do not commit. |
+| `bin/helm_deploy` | Pulls [helm-invenio](https://github.com/inveniosoftware/helm-invenio), runs `helm upgrade --install`. |
+| `bin/deploy.sh` | Renders the tmpl → yaml, runs `helm_deploy`, then **`bin/invenio_alembic_upgrade`**. |
+| `bin/invenio_alembic_upgrade` | `kubectl exec` into `<release>-web` and runs **`invenio alembic upgrade heads`** (not `invenio db upgrade`). |
 
-### Subsequent deploys
+### PostgreSQL
 
-Push to `main` triggers the GitHub Actions pipeline which builds the Docker
-image and runs `helm upgrade`.
+The app user must be able to create objects in **`public`**. On PostgreSQL **15+**, grant at least:
 
-### Manual deploy
+`GRANT USAGE, CREATE ON SCHEMA public TO <app_user>;`
+
+`GRANT ALL PRIVILEGES ON DATABASE` alone is **not** enough. If migrations fail with mixed or half-applied schema, prefer a coordinated reset (backup first) rather than patching by hand.
+
+### CI/CD
+
+- **Build** (`.github/workflows/build-test-lint.yml`): runs on **push** / PR to `main` (and manual dispatch); builds and pushes images (e.g. to GHCR).
+- **Deploy** (`.github/workflows/deploy.yml`): **workflow_dispatch** only — kubeconfig from secrets, renders `ops/<environment>-deploy.tmpl.yaml`, **`bin/helm_deploy`**, then **`bin/invenio_alembic_upgrade`**. Requires matching **secrets** and **environment** inputs (see the workflow and your org’s `setup-env` action, if used).
+
+### Scripted deploy (local CLI)
 
 ```bash
-helm repo add helm-invenio https://inveniosoftware.github.io/helm-invenio/
-helm upgrade --install inveniordm-demo helm-invenio/invenio \
-  -f helm/values.yaml \
-  --namespace inveniordm
+export RABBITMQ_PASSWORD=... POSTGRES_PASSWORD=...
+./bin/deploy.sh friends "$(git rev-parse --short HEAD)"
 ```
+
+Optional env: `HELM_RELEASE_NAME`, `KUBE_NAMESPACE`, `REPO_LOWER`, `CHART_VERSION`, `DEPLOY_IMAGE` / `DEPLOY_TAG` (see `bin/helm_deploy` and `bin/deploy.sh`).
+
+### Helm `invenio.init`
+
+In `ops/<env>-deploy.tmpl.yaml`, **`invenio.init: true`** enables the chart’s first-install job. After **one** successful bootstrap, set **`invenio.init: false`** and upgrade again so hooks do not re-run unnecessarily.
+
+### Admin user and roles (cluster)
+
+If no admin exists (e.g. new DB, or roles never created), run inside the **web** container:
+
+```bash
+# Replace release and namespace (e.g. invenioup-friends / invenioup-friends)
+kubectl exec -n <namespace> deploy/<release>-web -c web -- invenio roles create admin
+kubectl exec -n <namespace> deploy/<release>-web -c web -- invenio access allow superuser-access role admin
+kubectl exec -n <namespace> deploy/<release>-web -c web -- \
+  invenio users create you@example.com --password '<secure>' --active --confirm
+kubectl exec -n <namespace> deploy/<release>-web -c web -- \
+  invenio roles add you@example.com admin
+```
+
+Skip **`roles create admin`** if the role already exists.
+
+### Legacy script
+
+`scripts/bootstrap-deploy.sh` targets an older layout (`helm/values.yaml`, `inveniordm-demo`). Prefer **`bin/deploy.sh`** and **`ops/`** above.
 
 ## Configuration
 
@@ -90,28 +114,27 @@ helm upgrade --install inveniordm-demo helm-invenio/invenio \
 |------|---------|
 | `invenio.cfg` | Main InvenioRDM configuration |
 | `Pipfile` | Python dependencies |
-| `docker-compose.yml` | Docker Compose services |
-| `docker/entrypoint.sh` | Auto-init entrypoint (first-run setup) |
-| `helm/values.yaml` | Helm chart overrides for K8s |
+| `docker-compose.yml` | Local stack services |
+| `docker/entrypoint.sh` | First-run init when `INVENIO_AUTO_INIT=true` |
+| `ops/*-deploy.tmpl.yaml` | Kubernetes Helm value overrides (per environment) |
 | `assets/less/theme.less` | Custom CSS/LESS theme |
 | `templates/` | Jinja2 template overrides |
-| `site/` | Custom Python code package |
+| `site/` | Custom Python package |
 | `app_data/` | Vocabularies and fixtures |
 
 ## Architecture
 
-- **Edge Router**: Traefik via Stack Car (TLS termination, HTTP→HTTPS redirect)
-- **Web**: InvenioRDM Flask app served by uWSGI behind Nginx (uwsgi proxy)
-- **Worker**: Celery worker for async tasks (DOI registration, indexing, etc.)
-- **Beat**: Celery beat scheduler for periodic jobs
-- **Database**: PostgreSQL (existing cluster DB)
+- **Local edge**: Traefik via Stack Car (TLS, redirect)
+- **Web**: InvenioRDM (uWSGI) behind Nginx
+- **Worker / Beat**: Celery
+- **Kubernetes**: [helm-invenio](https://github.com/inveniosoftware/helm-invenio) bundles OpenSearch, Redis, RabbitMQ, etc.; **PostgreSQL** is typically external (see `ops/` templates)
 - **Search**: OpenSearch 2.x
-- **Cache/Sessions**: Redis
-- **Message Queue**: RabbitMQ
-- **File Storage**: AWS S3
+- **File storage**: S3-compatible (configure per environment)
 
 ## Key references
 
 - [InvenioRDM Docs](https://inveniordm.docs.cern.ch/)
 - [helm-invenio chart](https://github.com/inveniosoftware/helm-invenio)
 - [InvenioRDM Discord](https://discord.gg/8qatqBC)
+
+More local detail: **`docs/local-setup.md`**.

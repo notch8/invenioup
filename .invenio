@@ -3,13 +3,13 @@ flavour = RDM
 logfile = /logs/invenio-cli.log
 
 [cookiecutter]
-project_name = InvenioRDM Demo
+project_name = InvenioUp Demo
 project_shortname = invenioup
-project_site = inveniordm-demo.notch8.com
+project_site = invenioup-friends.notch8.cloud
 github_repo = notch8/invenioup
-description = Notch8 InvenioRDM Demo Instance
+description = Notch8 InvenioUp Demo Instance
 author_name = Notch8
-author_email = info@notch8.com
+author_email = sales@notch8.com
 year = 2026
 database = postgresql
 search = opensearch2

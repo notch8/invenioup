@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================
-# First-time deployment bootstrap for InvenioRDM Demo
-# on the r2-friends staging cluster.
+# Legacy bootstrap (old helm/values.yaml + inveniordm-demo naming).
+# Prefer: ops/<env>-deploy.tmpl.yaml + ./bin/deploy.sh <env> [tag]
+# ============================================================
 #
 # Prerequisites:
 #   - kubectl configured for r2-friends cluster
 #   - helm 3.x installed
-#   - K8s secrets already applied (see helm/secrets/README.md)
 #   - Docker image already pushed to GHCR
 #
 # Usage:
