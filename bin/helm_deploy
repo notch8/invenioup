@@ -10,6 +10,7 @@
 #
 # Optional:
 #   HELM_EXTRA_ARGS   extra helm flags (e.g. '-f ops/demo-deploy.yaml')
+#   HELM_INVENIO_REPO index URL (default: https://inveniosoftware.github.io/helm-invenio/)
 #   HELM_WAIT         default: --wait
 #   HELM_TIMEOUT      default: 10m
 #
@@ -27,9 +28,10 @@ DEPLOY_IMAGE="${DEPLOY_IMAGE:-ghcr.io/notch8/invenioup/web}"
 DEPLOY_TAG="${DEPLOY_TAG:-latest}"
 echo $DEPLOY_TAG
 
-helm pull --untar helm-invenio/invenio --version $CHART_VERSION
-
+HELM_INVENIO_REPO="${HELM_INVENIO_REPO:-https://inveniosoftware.github.io/helm-invenio/}"
+helm repo add helm-invenio "$HELM_INVENIO_REPO" 2>/dev/null || true
 helm repo update
+helm pull --untar helm-invenio/invenio --version "$CHART_VERSION"
 
 helm upgrade \
     --install \
