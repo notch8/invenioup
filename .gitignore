@@ -50,3 +50,5 @@ tests/e2e/playwright-report/
 
 # Helm
 invenio/
+ops/*-deploy.yaml
+bin/deploy.sh

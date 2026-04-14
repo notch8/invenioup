@@ -35,6 +35,8 @@ nginx:
     client_max_body_size: 100m
   files:
     client_max_body_size: 50G
+  # NOTES.txt in chart 0.11.x dereferences .initContainers.resources without a nil guard; empty map avoids a render panic.
+  initContainers: {}
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -69,15 +71,16 @@ web:
         - /bin/bash
         - -c
         - "uwsgi_curl -X HEAD -H 'Host: {{ include \"invenio.hostname\" $ }}' $(hostname):5000 /ping"
-    failureThreshold: 3
-    initialDelaySeconds: 10
-    periodSeconds: 5
+    failureThreshold: 30
+    initialDelaySeconds: 30
+    periodSeconds: 10
     successThreshold: 1
-    timeoutSeconds: 5
+    timeoutSeconds: 10
   livenessProbe: null
   assets:
     location: /opt/invenio/var/instance/static
   initContainers:
+    resources: {}
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -102,6 +105,7 @@ worker:
   concurrency: 2
   log_level: INFO
   replicas: 2
+  initContainers: {}
   run_mount_path: /var/run/celery
   celery_pidfile: /var/run/celery/celerybeat.pid
   celery_schedule: /var/run/celery/celery-schedule
@@ -128,6 +132,7 @@ worker:
   startupProbe: null
 
 workerBeat:
+  initContainers: {}
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:

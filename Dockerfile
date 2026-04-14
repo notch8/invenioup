@@ -10,6 +10,21 @@
 
 FROM registry.cern.ch/inveniosoftware/almalinux:1 AS web
 
+# CairoSVG (invenio-formatter → badges) loads libcairo/cairocffi at import time. Keep a full runtime set;
+# missing libs often surface only as failed worker boot or SIGTERM when probes kill a slow/crashing pod.
+RUN dnf install -y \
+    cairo \
+    cairo-gobject \
+    pango \
+    harfbuzz \
+    fribidi \
+    gdk-pixbuf2 \
+    gdk-pixbuf2-modules \
+    libffi \
+    shared-mime-info \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
 # Pin less to 4.5.1 to avoid the known 4.6.2 build breakage.
 # See: https://github.com/inveniosoftware/invenio-assets (JS dependency roulette)
 RUN npm install -g less@4.5.1
