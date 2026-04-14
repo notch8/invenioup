@@ -1,6 +1,4 @@
-name: "Build Test Lint"
-run-name: Build Test Lint of ${{ github.ref_name }} by @${{ github.actor }}
-
+name: "Build Docker Images"
 on:
   push:
     branches:
@@ -10,41 +8,148 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      debug_step:
+      components:
+        default: '["web"]'
+        description: "Used to set your target for the components"
         required: false
-        description: 'Pause the selected step to debug using tmate'
+        type: string
+      image_name:
+        description: "Docker image name part. Fills in ghcr.io/IMAGE_NAME. Typically this is the `repo_name`, but in some projects it might be `repo_name/sub_name`"
+        type: string
+      os:
+        default: '["ubuntu-latest"]'
+        description: "Used to set your target for the operating system"
+        required: false
+        type: string
+      subdir:
+        default: "."
+        type: string
+      tag:
+        required: false
+        type: string
+      debug_step:
+        description: "Pause build to debug with tmate (ssh)"
+        required: false
         type: choice
-        default: ''
+        default: ""
         options:
-          - ''
+          - ""
           - build
-          # - test
-          # - lint
+      docker_target_prefix:
+        description: "Prepended to each component for Dockerfile --target (e.g. hyku- + solr => hyku-solr). Image names still use the component only."
+        required: false
+        type: string
+        default: ""
+
+env:
+  REGISTRY: ghcr.io
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
   build:
     permissions: write-all
-    uses: notch8/actions/.github/workflows/build.yaml@v1.0.9
-    secrets: inherit
-    with:
-      components: '["web"]'
-      os: '["ubuntu-latest"]'
-      docker_target_prefix: ""
+    strategy:
+      matrix:
+        component: ${{ fromJson(inputs.components || '["web"]') }}
+        os: ${{ fromJson(inputs.os || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Set platform from matrix
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            echo "PLATFORM_TAG=amd64" >> $GITHUB_ENV
+          else
+            echo "PLATFORM_TAG=arm64" >> $GITHUB_ENV
+          fi
+      - id: setup
+        name: Setup
+        uses: notch8/actions/setup-env@v1.0.9
+        with:
+          tag: ${{ inputs.tag }}
+          image_name: ${{ inputs.image_name }}
+          token: ${{ secrets.CHECKOUT_TOKEN || secrets.GITHUB_TOKEN }}
+          subdir: ${{ inputs.subdir || '.' }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_step == 'build' }}
+        with:
+          limit-access-to-actor: true
+      - name: Build Prep
+        run: |
+          echo "Preparing build environment..."
+          cd "${{ inputs.subdir || '.' }}"
+          if [ -f "db/schema.rb" ]; then
+            chmod 777 db/schema.rb
+          fi
+          if [ -f "bin/checkout_all.sh" ]; then
+            ./bin/checkout_all.sh
+          fi
+      - name: Docker meta (version + latest on default branch)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            name=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ matrix.component }}
+          tags: |
+            type=raw,value=${{ env.TAG }}-${{ env.PLATFORM_TAG }}
+            type=raw,value=latest-${{ env.PLATFORM_TAG }},enable={{is_default_branch}}
+      - name: Build and push ${{ matrix.component }} on ${{ matrix.os }}
+        uses: docker/build-push-action@v3
+        with:
+          context: ${{ inputs.subdir || '.' }}
+          platforms: linux/${{ env.PLATFORM_TAG }}
+          target: ${{ inputs.docker_target_prefix }}${{ matrix.component }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/${{ matrix.component }}:latest
+          cache-to: type=inline
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
 
-  # test:
-  #   needs: build
-  #   uses: notch8/actions/.github/workflows/test.yaml@v1.0.9
-  #   with:
-  #     confdir: "/app/samvera/hyrax-webapp/solr/conf"
-  #     rspec_cmd: "cd .. && gem install semaphore_test_boosters && bundle && rspec_booster --job $CI_NODE_INDEX/$CI_NODE_TOTAL"
-
-  # lint:
-  #   needs: build
-  #   uses: notch8/actions/.github/workflows/lint.yaml@v1.0.9
-  #   with:
-  #     rubocop_cmd: "cd .. && bundle && bundle exec rubocop --parallel --format progress --format junit --out rubocop.xml"
-
-  # reports:
-  #   if: always()
-  #   needs: [test, lint]
-  #   uses: notch8/actions/.github/workflows/report.yaml@v1.0.9
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - id: setup
+        name: Setup
+        uses: notch8/actions/setup-env@v1.0.9
+        with:
+          tag: ${{ inputs.tag }}
+          image_name: ${{ inputs.image_name }}
+          token: ${{ secrets.CHECKOUT_TOKEN || secrets.GITHUB_TOKEN }}
+          subdir: ${{ inputs.subdir || '.' }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create image tags (single arch - amd64 only)
+        run: |
+          components_list=$(echo '${{ inputs.components || '["web"]' }}' | jq -r '.[]' | tr '\n' ' ')
+          for component in $components_list; do
+            docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/$component:${{ env.TAG }} \
+              ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/$component:${{ env.TAG }}-amd64
+          done
+      - name: Create latest tags (default branch only)
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          components_list=$(echo '${{ inputs.components || '["web"]' }}' | jq -r '.[]' | tr '\n' ' ')
+          for component in $components_list; do
+            docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/$component:latest \
+              ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}/$component:latest-amd64
+          done
