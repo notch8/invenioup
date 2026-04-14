@@ -51,4 +51,7 @@ jobs:
           DOLLAR=$ envsubst < ops/${{ inputs.environment }}-deploy.tmpl.yaml > ops/${{ inputs.environment }}-deploy.yaml;
           export DEPLOY_TAG=${TAG};
           export DEPLOY_IMAGE=ghcr.io/${REPO_LOWER}/web;
-          ./bin/helm_deploy ${{ inputs.k8s-release-name || format('{0}-{1}', github.event.repository.name, inputs.environment) }} ${{ inputs.k8s-namespace || format('{0}-{1}', github.event.repository.name, inputs.environment) }}
+          RELEASE="${{ inputs.k8s-release-name || format('{0}-{1}', github.event.repository.name, inputs.environment) }}"
+          NS="${{ inputs.k8s-namespace || format('{0}-{1}', github.event.repository.name, inputs.environment) }}"
+          ./bin/helm_deploy "$RELEASE" "$NS"
+          ./bin/invenio_alembic_upgrade "$RELEASE" "$NS"

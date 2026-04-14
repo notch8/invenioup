@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Apply DB migrations in the running web Deployment (helm-invenio names it <release>-web).
+#
+# Usage: ./bin/invenio_alembic_upgrade RELEASE_NAME NAMESPACE
+#
+# Requires: kubectl configured for the cluster; web pods Ready.
+set -euo pipefail
+
+if [[ -z "${1:-}" ]] || [[ -z "${2:-}" ]]; then
+  echo "usage: $0 RELEASE_NAME NAMESPACE" >&2
+  echo "example: $0 invenioup-friends invenioup-friends" >&2
+  exit 1
+fi
+
+release_name="$1"
+namespace="$2"
+deploy="${release_name}-web"
+
+kubectl rollout status "deployment/${deploy}" -n "${namespace}" --timeout=5m
+kubectl exec -n "${namespace}" "deploy/${deploy}" -c web -- \
+  invenio alembic upgrade heads
