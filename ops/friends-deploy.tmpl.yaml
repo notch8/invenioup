@@ -25,6 +25,8 @@ invenio:
   hostname: "invenioup-friends.notch8.cloud"
   init: false
   demo_data: false
+  # helm-invenio uwsgi defaults use lazy-apps + need-app: each worker loads the app on first request.
+  # Too many processes = many cold loads under probe traffic; SIGTERM during import shows as KeyboardInterrupt.
 
 nginx:
   image: "nginx:1.24.0"
@@ -47,7 +49,7 @@ web:
   replicas: 2
   terminationGracePeriodSeconds: 60
   uwsgi:
-    processes: 6
+    processes: 2
     threads: 4
   autoscaler:
     enabled: false
@@ -60,22 +62,22 @@ web:
         - /bin/bash
         - -c
         - "uwsgi_curl -X HEAD -H 'Host: {{ include \"invenio.hostname\" $ }}' $(hostname):5000 /ping"
-    failureThreshold: 3
-    initialDelaySeconds: 5
-    periodSeconds: 5
+    failureThreshold: 6
+    initialDelaySeconds: 15
+    periodSeconds: 10
     successThreshold: 1
-    timeoutSeconds: 1
+    timeoutSeconds: 15
   startupProbe:
     exec:
       command:
         - /bin/bash
         - -c
         - "uwsgi_curl -X HEAD -H 'Host: {{ include \"invenio.hostname\" $ }}' $(hostname):5000 /ping"
-    failureThreshold: 30
-    initialDelaySeconds: 30
-    periodSeconds: 10
+    failureThreshold: 40
+    initialDelaySeconds: 15
+    periodSeconds: 15
     successThreshold: 1
-    timeoutSeconds: 10
+    timeoutSeconds: 30
   livenessProbe: null
   assets:
     location: /opt/invenio/var/instance/static
