@@ -31,7 +31,6 @@ jobs:
       KUBECONFIG: ./kubeconfig.yml
       RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
 # add secrets for deploy values files to tmpl in from github actions here
     steps:
       - id: setup

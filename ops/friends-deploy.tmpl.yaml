@@ -23,7 +23,9 @@ ingress:
 invenio:
   # Set to your public hostname (e.g. rdm.example.com).
   hostname: "invenioup-friends.notch8.cloud"
-  init: false
+  # First install only: chart post-install job creates DB tables, search indexes, admin role, etc.
+  # After one successful deploy, set init: false and upgrade again (see README).
+  init: true
   demo_data: false
   # helm-invenio uwsgi defaults use lazy-apps + need-app: each worker loads the app on first request.
   # Too many processes = many cold loads under probe traffic; SIGTERM during import shows as KeyboardInterrupt.
@@ -167,9 +169,10 @@ persistence:
 
 redis:
   enabled: true
+  # helm-invenio 0.11.x sets INVENIO_*_REDIS_URL without a password; enabling auth breaks sessions/cache (Authentication required).
+  # Keep false unless you patch every Redis URL via invenio.extraConfig (redis://:password@host:6379/N).
   auth:
-    enabled: true
-    password: "${REDIS_PASSWORD}"
+    enabled: false
   image:
     repository: bitnamilegacy/redis
   master:
