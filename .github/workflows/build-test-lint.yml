@@ -28,6 +28,7 @@ jobs:
     secrets: inherit
     with:
       components: '["web"]'
+      os: '["ubuntu-latest"]'
       docker_target_prefix: ""
 
   # test:
