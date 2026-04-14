@@ -183,11 +183,10 @@ flower:
 postgresql:
   enabled: false
 
-# Edit host / user / database / secret name in git. Password must be in that K8s Secret in the release namespace.
 postgresqlExternal:
-  host: "postgres-postgresql.postgres.svc.cluster.local"
+  hostname: "postgres-postgresql.postgres.svc.cluster.local"
   port: 5432
-  user: "invenioup-friends"
+  username: "invenioup-friends"
   database: "invenioup-friends"
   password: "${POSTGRES_PASSWORD}"
 
