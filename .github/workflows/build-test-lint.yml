@@ -28,6 +28,7 @@ jobs:
     secrets: inherit
     with:
       components: '["web"]'
+      docker_target_prefix: ""
 
   # test:
   #   needs: build
