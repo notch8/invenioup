@@ -51,6 +51,10 @@ RUN cp -r ./static/. ${INVENIO_INSTANCE_PATH}/static/ && \
 RUN invenio webpack install
 RUN invenio webpack build
 
+COPY scripts/invenio-first-run-init.sh /usr/local/bin/invenio-first-run-init
+COPY scripts/invenio-k8s-rdm-bootstrap.sh /usr/local/bin/invenio-k8s-rdm-bootstrap
+RUN chmod +x /usr/local/bin/invenio-first-run-init /usr/local/bin/invenio-k8s-rdm-bootstrap
+
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

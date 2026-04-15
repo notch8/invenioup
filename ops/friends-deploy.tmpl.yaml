@@ -3,6 +3,7 @@
 #
 # Non-secret settings: edit this file in git (hostname, Postgres host, ingress, persistence, etc.).
 # Secrets only: use $VAR placeholders; deploy workflow exports them from GitHub Actions secrets before envsubst.
+# S3: create a Kubernetes Secret named "{{ .Release.Name }}-s3" in the target namespace (see README — not from envsubst).
 # Helm templates such as {{ include "invenio.hostname" $ }} are unchanged by envsubst.
 ---
 global:
@@ -21,12 +22,21 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-production-dns"
 
 invenio:
-  # Set to your public hostname (e.g. rdm.example.com).
+  # Set to your public hostname (e.g. rdm.example.com). Chart sets INVENIO_SITE_UI_URL / TRUSTED_HOSTS from this.
   hostname: "invenioup-friends.notch8.cloud"
-  # First install only: chart post-install job creates DB tables, search indexes, admin role, etc.
-  # After one successful deploy, set init: false and upgrade again (see README).
+  # First install only: chart post-install job runs db/index/files/admin role + default_users (below).
+  # It does not run RDM custom-fields, fixtures, or demo — run ./bin/k8s_bootstrap_rdm once after first install.
+  # After one successful bootstrap, set init: false and helm upgrade again (see README).
   init: true
   demo_data: false
+  # Admin user for the install-init job (envsubst: INVENIO_ADMIN_EMAIL + INVENIO_ADMIN_PASSWORD).
+  default_users:
+    ? "${INVENIO_ADMIN_EMAIL}"
+    : "${INVENIO_ADMIN_PASSWORD}"
+  # S3 credentials for invenio_s3 (see invenio.cfg). Secret must exist before upgrade — README "S3 file storage".
+  extraEnvFrom:
+    - secretRef:
+        name: "s3-invenioup-friends"
   # helm-invenio uwsgi defaults use lazy-apps + need-app: each worker loads the app on first request.
   # Too many processes = many cold loads under probe traffic; SIGTERM during import shows as KeyboardInterrupt.
 

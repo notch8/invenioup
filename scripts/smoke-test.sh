@@ -67,7 +67,7 @@ check "Communities API"       "$BASE_URL/api/communities"
 
 echo ""
 echo "--- Fixtures & vocabularies ---"
-check "Resource types vocab"  "$BASE_URL/api/vocabularies/resource_types"
+check "Resource types vocab"  "$BASE_URL/api/vocabularies/resourcetypes"
 
 echo ""
 echo "--- Content checks ---"

@@ -15,6 +15,11 @@ on:
         description: "Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)"
         required: false
         default: false
+      run_rdm_bootstrap:
+        type: boolean
+        description: "After deploy, run bin/k8s_bootstrap_rdm (RDM custom-fields, fixtures, demo). Use once for a new cluster; skip on routine upgrades."
+        required: false
+        default: false
 
 jobs:
   deployment:
@@ -31,6 +36,8 @@ jobs:
       KUBECONFIG: ./kubeconfig.yml
       RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      INVENIO_ADMIN_EMAIL: ${{ vars.INVENIO_ADMIN_EMAIL || 'admin@notch8.com' }}
+      INVENIO_ADMIN_PASSWORD: ${{ secrets.INVENIO_ADMIN_PASSWORD }}
 # add secrets for deploy values files to tmpl in from github actions here
     steps:
       - id: setup
@@ -53,5 +60,10 @@ jobs:
           export DEPLOY_IMAGE=ghcr.io/${REPO_LOWER}/web;
           RELEASE="${{ inputs.k8s-release-name || format('{0}-{1}', github.event.repository.name, inputs.environment) }}"
           NS="${{ inputs.k8s-namespace || format('{0}-{1}', github.event.repository.name, inputs.environment) }}"
+          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
+          echo "NS=$NS" >> "$GITHUB_ENV"
           ./bin/helm_deploy "$RELEASE" "$NS"
           ./bin/invenio_alembic_upgrade "$RELEASE" "$NS"
+      - name: RDM bootstrap (optional, first install)
+        if: ${{ inputs.run_rdm_bootstrap }}
+        run: ./bin/k8s_bootstrap_rdm "$RELEASE" "$NS"
