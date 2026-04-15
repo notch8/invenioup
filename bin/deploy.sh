@@ -2,7 +2,7 @@
 # Local / scripted deploy: render ops/<env>-deploy.tmpl.yaml → ops/<env>-deploy.yaml, then helm upgrade.
 #
 # Usage:
-#   export RABBITMQ_PASSWORD=... POSTGRES_PASSWORD=...
+#   export RABBITMQ_PASSWORD=... POSTGRES_PASSWORD=... INVENIO_ADMIN_PASSWORD=...
 #   ./bin/deploy.sh <environment> [image_tag]
 #
 # Example:
@@ -30,6 +30,7 @@ export REPO_LOWER="${REPO_LOWER:-notch8/invenioup}"
 
 export DEPLOY_IMAGE="ghcr.io/${REPO_LOWER}/web"
 export WORKER_IMAGE="$DEPLOY_IMAGE"
+export INVENIO_ADMIN_EMAIL="${INVENIO_ADMIN_EMAIL}"
 
 TMPL="ops/${ENV}-deploy.tmpl.yaml"
 OUT="ops/${ENV}-deploy.yaml"
@@ -39,14 +40,14 @@ if [[ ! -f "$TMPL" ]]; then
   exit 1
 fi
 
-for v in RABBITMQ_PASSWORD POSTGRES_PASSWORD; do
+for v in RABBITMQ_PASSWORD POSTGRES_PASSWORD INVENIO_ADMIN_PASSWORD; do
   if [[ -z "${!v:-}" ]]; then
     echo "error: export $v before running (required by $TMPL)" >&2
     exit 1
   fi
 done
 
-envsubst '$RABBITMQ_PASSWORD $POSTGRES_PASSWORD' < "$TMPL" > "$OUT"
+envsubst '$RABBITMQ_PASSWORD $POSTGRES_PASSWORD $INVENIO_ADMIN_EMAIL $INVENIO_ADMIN_PASSWORD' < "$TMPL" > "$OUT"
 
 ./bin/helm_deploy "$HELM_RELEASE_NAME" "$KUBE_NAMESPACE"
 ./bin/invenio_alembic_upgrade "$HELM_RELEASE_NAME" "$KUBE_NAMESPACE"
