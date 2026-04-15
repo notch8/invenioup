@@ -1,1 +1,1 @@
-"""Custom Celery tasks for InvenioRDM Demo."""
+"""Custom Celery tasks for InvenioUp Demo."""

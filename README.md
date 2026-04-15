@@ -56,7 +56,7 @@ Helm values live under **`ops/`**, not a root `helm/` tree.
 
 | Item | Role |
 |------|------|
-| `ops/<env>-deploy.tmpl.yaml` | Committed overrides; only **`$RABBITMQ_PASSWORD`** and **`$POSTGRES_PASSWORD`** are replaced by `envsubst`. |
+| `ops/<env>-deploy.tmpl.yaml` | Committed overrides; only **`$RABBITMQ_PASSWORD`** and **`$POSTGRES_PASSWORD`** are replaced by `envsubst`. S3 uses a separate Kubernetes Secret (see below). |
 | `ops/<env>-deploy.yaml` | Generated at deploy time (**gitignored**). Do not commit. |
 | `bin/helm_deploy` | Pulls [helm-invenio](https://github.com/inveniosoftware/helm-invenio), runs `helm upgrade --install`. |
 | `bin/deploy.sh` | Renders the tmpl → yaml, runs `helm_deploy`, then **`bin/invenio_alembic_upgrade`**. |
@@ -69,6 +69,84 @@ The app user must be able to create objects in **`public`**. On PostgreSQL **15+
 `GRANT USAGE, CREATE ON SCHEMA public TO <app_user>;`
 
 `GRANT ALL PRIVILEGES ON DATABASE` alone is **not** enough. If migrations fail with mixed or half-applied schema, prefer a coordinated reset (backup first) rather than patching by hand.
+
+### S3 file storage (Kubernetes)
+
+`invenio.cfg` uses **`invenio_s3`**. Web and worker pods need **`INVENIO_S3_ENDPOINT_URL`**, **`INVENIO_S3_ACCESS_KEY_ID`**, and **`INVENIO_S3_SECRET_ACCESS_KEY`** (see `.env.example` for local names).
+
+Helm values mount an extra Secret named **`{helm-release-name}-s3`** (for example `invenioup-friends-s3` when the release is `invenioup-friends`). **Create or update that Secret in the namespace before `helm upgrade`**, or pods will fail to start when they reference a missing Secret.
+
+1. **AWS: bucket and dedicated IAM user**
+
+   - In **S3**, create a bucket in your chosen region (example: `us-west-2`). Block public access should stay on unless you have a deliberate public-assets design.
+   - In **IAM → Users → Create user**: choose a name (for example `invenioup-friends-s3`). Invenio does **not** need console sign-in; attach the policy below, then create an **access key** under **Security credentials**.
+   - **Do not** attach `AmazonS3FullAccess` for production. Instead, attach an **inline policy** (or a dedicated customer-managed policy) scoped to **one bucket** (and optional prefix). Example policy — replace `YOUR_BUCKET_NAME` and, if you use a prefix, narrow `Resource` ARNs with `YOUR_BUCKET_NAME/your-prefix/*`:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "ListBucket",
+         "Effect": "Allow",
+         "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+         "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME"
+       },
+       {
+         "Sid": "ObjectRW",
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject",
+           "s3:AbortMultipartUpload",
+           "s3:ListMultipartUploadParts"
+         ],
+         "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/*"
+       }
+     ]
+   }
+   ```
+
+   - **IAM → Users → your user → Security credentials → Create access key** → use case **Application running outside AWS** (or **Local code**). Save the **Access key ID** and **Secret access key** once; the secret is shown only at creation time. These map directly to **`INVENIO_S3_ACCESS_KEY_ID`** and **`INVENIO_S3_SECRET_ACCESS_KEY`**.
+   - Set **`INVENIO_S3_ENDPOINT_URL`** to the regional endpoint for S3 in that region, typically `https://s3.<region>.amazonaws.com` (for example `https://s3.us-west-2.amazonaws.com`). Use the same region where the bucket lives.
+
+   **AWS CLI** (optional): after saving the JSON policy above as `invenioup-s3-policy.json` (with your real bucket name), you can run:
+
+   ```bash
+   USER_NAME=invenioup-friends-s3
+   aws iam create-user --user-name "$USER_NAME"
+   aws iam put-user-policy \
+     --user-name "$USER_NAME" \
+     --policy-name invenioup-friends-s3-bucket \
+     --policy-document file://invenioup-s3-policy.json
+   aws iam create-access-key --user-name "$USER_NAME"
+   ```
+
+   The last command prints **`AccessKeyId`** and **`SecretAccessKey`**; use those in the Kubernetes Secret. Rotate keys by creating a new access key, updating the Secret, restarting workloads, then deleting the old key.
+
+2. **Kubernetes Secret** (replace release, namespace, endpoint, and paste the IAM access key id and secret from the step above):
+
+   ```bash
+   RELEASE=invenioup-friends
+   NS=invenioup-friends
+
+   kubectl create secret generic "${RELEASE}-s3" \
+     --namespace="${NS}" \
+     --from-literal=INVENIO_S3_ENDPOINT_URL='https://s3.us-west-2.amazonaws.com' \
+     --from-literal=INVENIO_S3_ACCESS_KEY_ID='YOUR_ACCESS_KEY' \
+     --from-literal=INVENIO_S3_SECRET_ACCESS_KEY='YOUR_SECRET_KEY'
+   ```
+
+   To update an existing Secret, delete and recreate it, or use `kubectl create secret generic ... --dry-run=client -o yaml | kubectl apply -f -`.
+
+   For **MinIO** inside the cluster, set `INVENIO_S3_ENDPOINT_URL` to the service URL (for example `http://minio.my-namespace.svc.cluster.local:9000/`) and use that deployment’s root/user credentials.
+
+3. Deploy with Helm as usual. After the first boot, ensure a default **files location** exists for that bucket (the chart init job may do this; if `invenio files location list` is empty, run inside the **web** pod):
+
+   ```bash
+   invenio files location create --default default-location "s3://YOUR_BUCKET_NAME/"
+   ```
 
 ### CI/CD
 

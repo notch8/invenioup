@@ -1,1 +1,1 @@
-"""Notch8 InvenioRDM Demo Instance."""
+"""Notch8 InvenioUp Demo Instance."""

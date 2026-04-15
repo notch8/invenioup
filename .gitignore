@@ -1,14 +1,26 @@
 # Python
 *.py[cod]
 __pycache__/
-*.egg-info/
-*.egg
-dist/
-build/
-.eggs/
 *.so
 
-# Virtual environment
+# Distribution / packaging
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 .venv/
 venv/
 env/
@@ -16,12 +28,49 @@ env/
 # Pipenv
 Pipfile.lock
 
-# InvenioRDM
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+
+# Translations
+*.mo
+*.pot
+
+# Django / logs
+*.log
 logs/
+
+# Sphinx
+docs/_build/
+
+# PyBuilder
+target/
+
+# Database
+test.db
+
+# InvenioRDM
 data/
+data/default/*
+data/.minio.sys
 static/dist/
 static/node_modules/
 assets/node_modules/
+.invenio.private
 
 # IDE
 .idea/
@@ -38,17 +87,20 @@ Thumbs.db
 docker/nginx/test.key
 docker/nginx/test.crt
 
-# Environment / Secrets
+# Environment / secrets
 .env
 .env.local
 .env.production
 
 # Playwright
 tests/e2e/node_modules/
-tests/e2e/test-results/
+tests/ee/test-results/
 tests/e2e/playwright-report/
 
-# Helm
+# Helm / deploy
 invenio/
 ops/*-deploy.yaml
 bin/deploy.sh
+
+# Celery
+celerybeat-schedule

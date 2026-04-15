@@ -26,7 +26,7 @@ test.describe("Smoke tests", () => {
   });
 
   test("API vocabularies endpoint responds", async ({ request }) => {
-    const response = await request.get("/api/vocabularies/resource_types");
+    const response = await request.get("/api/vocabularies/resourcetypes");
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body).toHaveProperty("hits");
